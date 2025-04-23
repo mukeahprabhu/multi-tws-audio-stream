@@ -12,16 +12,6 @@
     const socket = new WebSocket("wss://multi-tws-audio-backend.onrender.com");
 
     const audioContext = new AudioContext();
-    const source = audioContext.createBufferSource();
-    const streamNode = audioContext.createMediaStreamDestination();
-    const mediaSource = audioContext.createMediaStreamSource(streamNode.stream);
-    mediaSource.connect(audioContext.destination);
-
-    const mediaSourceNode = new MediaSource();
-    const audioChunks = [];
-
-    const sourceNode = audioContext.createBufferSource();
-    sourceNode.connect(audioContext.destination);
 
     const playAudioBlob = async (blob) => {
       const arrayBuffer = await blob.arrayBuffer();
