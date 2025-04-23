@@ -3,51 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Multi-TWS Audio Streaming</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      text-align: center;
-    }
-    #status {
-      font-weight: bold;
-      font-size: 18px;
-    }
-  </style>
+  <title>WebSocket Client</title>
 </head>
 <body>
-  <h1>Multi-TWS Audio Streaming</h1>
+  <h1>WebSocket Client</h1>
   <div id="status">Initializing...</div>
 
   <script>
-    // Function to connect to the WebSocket server
-    function connectWebSocket() {
-      const socket = new WebSocket('ws://your-server-url:10000'); // Ensure you are using the correct URL here
+    const statusElement = document.getElementById('status');
 
-      socket.onopen = function() {
-        console.log('WebSocket connected');
-        document.getElementById('status').textContent = "Connected to WebSocket!";
-      };
+    // Connect to the WebSocket server using wss:// (secure WebSocket)
+    const socket = new WebSocket('wss://your-server-url:10000');
 
-      socket.onmessage = function(event) {
-        console.log('Message from server:', event.data);
-      };
+    socket.onopen = function () {
+      statusElement.textContent = 'WebSocket connected';
+      console.log('WebSocket connected');
+    };
 
-      socket.onerror = function(error) {
-        console.error('WebSocket error:', error);
-        document.getElementById('status').textContent = "WebSocket error!";
-      };
+    socket.onerror = function (error) {
+      statusElement.textContent = 'WebSocket error occurred';
+      console.log('WebSocket error:', error);
+    };
 
-      socket.onclose = function() {
-        console.log('WebSocket closed');
-        document.getElementById('status').textContent = "WebSocket closed!";
-      };
-    }
-
-    // Call the connectWebSocket function when the page loads
-    window.onload = function() {
-      connectWebSocket();
+    socket.onclose = function () {
+      statusElement.textContent = 'WebSocket closed';
+      console.log('WebSocket closed');
     };
   </script>
 </body>
