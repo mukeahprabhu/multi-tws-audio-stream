@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Live Audio Streaming</title>
 </head>
 <body>
@@ -31,12 +31,14 @@
     });
 
     function connectWebSocket() {
-      const ws = new WebSocket(`wss://${window.location.host}`);
+      const wsProtocol = location.protocol === "https:" ? "wss" : "ws";
+      const wsHost = location.host || "localhost:10000"; // fallback for local testing
+      const ws = new WebSocket(`${wsProtocol}://${wsHost}`);
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
-        document.getElementById("status").innerText = "Connected to WebSocket server";
-        console.log("WebSocket connection opened.");
+        document.getElementById("status").innerText = "Connected";
+        console.log("WebSocket connected");
       };
 
       ws.onmessage = (event) => {
@@ -47,13 +49,14 @@
         }
       };
 
-      ws.onerror = (err) => {
-        console.error("WebSocket error:", err);
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        document.getElementById("status").innerText = "Error";
       };
 
       ws.onclose = () => {
-        document.getElementById("status").innerText = "WebSocket Disconnected";
         console.log("WebSocket closed");
+        document.getElementById("status").innerText = "Disconnected";
       };
     }
   </script>
