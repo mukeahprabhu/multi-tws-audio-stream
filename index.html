@@ -31,16 +31,16 @@
     });
 
     function connectWebSocket() {
-      // Connect to the WebSocket server (replace with your actual server URL)
-      const ws = new WebSocket("ws://multi-tws-audio-backend.onrender.com:8080");
+      const ws = new WebSocket("wss://multi-tws-audio-backend.onrender.com:8080");
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
         document.getElementById("status").innerText = "Connected to WebSocket server";
-        console.log("Connected to WebSocket server.");
+        console.log("WebSocket connection opened.");
       };
 
       ws.onmessage = (event) => {
+        console.log("Received audio data:", event.data);
         if (sourceBuffer.updating || queue.length > 0) {
           queue.push(event.data);  // Store audio data until buffer is ready
         } else {
