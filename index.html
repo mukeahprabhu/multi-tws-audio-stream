@@ -31,7 +31,8 @@
     });
 
     function connectWebSocket() {
-      const ws = new WebSocket("wss://multi-tws-audio-backend.onrender.com:8080");
+      // Connect to the WebSocket server using ws:// for testing
+      const ws = new WebSocket("ws://multi-tws-audio-backend.onrender.com:8080");  // Use ws:// for testing if wss:// fails
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
@@ -50,11 +51,17 @@
 
       ws.onerror = (err) => {
         console.error("WebSocket error:", err);
+        // Log error details
+        if (err instanceof Event) {
+          console.log("Error event details:", err);
+        }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         document.getElementById("status").innerText = "WebSocket Disconnected";
-        console.log("WebSocket closed");
+        console.log("WebSocket closed", event);
+        // Provide more specific close reasons
+        console.log("WebSocket close event details:", event);
       };
     }
   </script>
