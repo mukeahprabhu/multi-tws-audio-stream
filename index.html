@@ -1,34 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebSocket Client</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Multi-TWS Audio Stream</title>
 </head>
 <body>
-  <h1>WebSocket Client</h1>
-  <div id="status">Initializing...</div>
-
+  <h1>Multi-TWS Audio Stream</h1>
+  <p id="status">Initializing...</p>
   <script>
-    const statusElement = document.getElementById('status');
+    const statusEl = document.getElementById("status");
 
-    // Connect to the WebSocket server using wss:// (secure WebSocket)
-    const socket = new WebSocket('wss://your-server-url:10000');
+    function connectWebSocket() {
+      const socket = new WebSocket("wss://multi-tws-audio-backend.onrender.com");
 
-    socket.onopen = function () {
-      statusElement.textContent = 'WebSocket connected';
-      console.log('WebSocket connected');
-    };
+      socket.onopen = () => {
+        console.log("WebSocket connected");
+        if (statusEl) statusEl.textContent = "WebSocket connected ✅";
+      };
 
-    socket.onerror = function (error) {
-      statusElement.textContent = 'WebSocket error occurred';
-      console.log('WebSocket error:', error);
-    };
+      socket.onerror = (event) => {
+        console.error("WebSocket error:", event);
+        if (statusEl) statusEl.textContent = "WebSocket error ❌";
+      };
 
-    socket.onclose = function () {
-      statusElement.textContent = 'WebSocket closed';
-      console.log('WebSocket closed');
-    };
+      socket.onclose = () => {
+        console.log("WebSocket closed");
+        if (statusEl) statusEl.textContent = "WebSocket closed ❌";
+      };
+
+      socket.onmessage = (event) => {
+        console.log("Received:", event.data);
+      };
+    }
+
+    connectWebSocket();
   </script>
 </body>
 </html>
