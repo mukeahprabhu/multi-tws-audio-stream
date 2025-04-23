@@ -32,7 +32,8 @@
 
     function connectWebSocket() {
       // Use your laptop's IP address for the WebSocket connection
-      const ws = new WebSocket("ws://192.168.209.165:8080");
+      const ws = new WebSocket("wss://multi-tws-audio-backend.onrender.com");
+
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
