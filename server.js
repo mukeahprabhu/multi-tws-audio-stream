@@ -1,20 +1,20 @@
-const express = require('express');
-const http = require('http');
 const WebSocket = require('ws');
+const https = require('https');
+const fs = require('fs');
 
-// Set up the express app
-const app = express();
-const server = http.createServer(app);
+// SSL certificate for HTTPS
+const server = https.createServer({
+  key: fs.readFileSync('path/to/your/private-key.pem'),
+  cert: fs.readFileSync('path/to/your/certificate.pem'),
+});
 
-// Set up the WebSocket server
 const wss = new WebSocket.Server({ server });
 
-// Log when a client connects
-wss.on('connection', (ws) => {
+wss.on('connection', function connection(ws) {
   console.log('Client connected');
 
-  ws.on('message', (message) => {
-    console.log('Received:', message);
+  ws.on('message', function incoming(message) {
+    console.log('received: %s', message);
   });
 
   ws.on('close', () => {
@@ -22,11 +22,7 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Serve static files if necessary
-app.use(express.static('public'));  // Update with the correct path if needed
-
-// Make the server listen on the provided port
-const port = process.env.PORT || 10000; // Use environment variable for cloud deployment
-server.listen(port, '0.0.0.0', () => {
-  console.log(`Server is running on http://localhost:${port}`);
+// Your server should listen to HTTPS port (e.g., 443 or 10000 if you prefer a custom port)
+server.listen(10000, () => {
+  console.log('WebSocket server running on wss://your-server-url:10000');
 });
