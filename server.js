@@ -1,16 +1,17 @@
 const WebSocket = require("ws");
 const { spawn } = require("child_process");
 
-// Bind WebSocket server to 0.0.0.0 to accept external connections
-const wss = new WebSocket.Server({ host: '0.0.0.0', port: 8080 });
-console.log("WebSocket server running on ws://0.0.0.0:8080");
+const PORT = process.env.PORT || 8080;
+const wss = new WebSocket.Server({ port: PORT });
+
+console.log(`WebSocket server running on port ${PORT}`);
 
 wss.on("connection", (ws) => {
   console.log("Client connected");
 
   const ffmpeg = spawn("ffmpeg", [
     "-f", "dshow",
-    "-i", "audio=Stereo Mix (Realtek(R) Audio)", // Ensure correct input device
+    "-i", "audio=Stereo Mix (Realtek(R) Audio)", // Your actual input device
     "-f", "webm",
     "-acodec", "libvorbis",
     "-ar", "44100",
