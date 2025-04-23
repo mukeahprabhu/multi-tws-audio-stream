@@ -1,22 +1,21 @@
-const WebSocket = require('ws');
+const WebSocket = require("ws");
+const wss = new WebSocket.Server({ port: 10000 });
 
-// Use the port provided by Render, or default to 10000 locally
-const port = process.env.PORT || 10000;
+console.log("WebSocket server running on port 10000");
 
-const wss = new WebSocket.Server({ port }, () => {
-  console.log(`✅ WebSocket server running on ws://localhost:${port}`);
-});
+wss.on("connection", (ws) => {
+  console.log("Client connected");
 
-wss.on('connection', (ws) => {
-  console.log('📥 Client connected');
-
-  ws.on('message', (message) => {
-    console.log('📨 Received:', message);
-    // Optional: Echo the message back
-    ws.send(`Server received: ${message}`);
+  ws.on("message", (message) => {
+    // Broadcast to everyone *except* sender
+    wss.clients.forEach((client) => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
   });
 
-  ws.on('close', () => {
-    console.log('❌ Client disconnected');
+  ws.on("close", () => {
+    console.log("Client disconnected");
   });
 });
