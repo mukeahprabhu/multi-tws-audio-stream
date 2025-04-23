@@ -1,40 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Multi-TWS Audio Stream</title>
+  <title>Audio Receiver</title>
 </head>
 <body>
-  <h1>Multi-TWS Audio Stream</h1>
-  <p id="status">Initializing...</p>
+  <h2>Audio Receiver 🎧</h2>
+  <p id="status">Connecting...</p>
+
   <script>
     const statusEl = document.getElementById("status");
+    const socket = new WebSocket("wss://multi-tws-audio-backend.onrender.com");
 
-    function connectWebSocket() {
-      const socket = new WebSocket("wss://multi-tws-audio-backend.onrender.com");
+    const audioContext = new AudioContext();
+    const source = audioContext.createBufferSource();
+    const streamNode = audioContext.createMediaStreamDestination();
+    const mediaSource = audioContext.createMediaStreamSource(streamNode.stream);
+    mediaSource.connect(audioContext.destination);
 
-      socket.onopen = () => {
-        console.log("WebSocket connected");
-        if (statusEl) statusEl.textContent = "WebSocket connected ✅";
-      };
+    const mediaSourceNode = new MediaSource();
+    const audioChunks = [];
 
-      socket.onerror = (event) => {
-        console.error("WebSocket error:", event);
-        if (statusEl) statusEl.textContent = "WebSocket error ❌";
-      };
+    const sourceNode = audioContext.createBufferSource();
+    sourceNode.connect(audioContext.destination);
 
-      socket.onclose = () => {
-        console.log("WebSocket closed");
-        if (statusEl) statusEl.textContent = "WebSocket closed ❌";
-      };
+    const playAudioBlob = async (blob) => {
+      const arrayBuffer = await blob.arrayBuffer();
+      audioContext.decodeAudioData(arrayBuffer, (buffer) => {
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContext.destination);
+        source.start(0);
+      });
+    };
 
-      socket.onmessage = (event) => {
-        console.log("Received:", event.data);
-      };
-    }
+    socket.onopen = () => {
+      console.log("Connected to WebSocket server");
+      statusEl.textContent = "Connected 🎧";
+    };
 
-    connectWebSocket();
+    socket.onmessage = (event) => {
+      const blob = event.data instanceof Blob
+        ? event.data
+        : new Blob([event.data], { type: "audio/webm" });
+
+      playAudioBlob(blob);
+    };
+
+    socket.onerror = (e) => {
+      console.error("WebSocket error:", e);
+      statusEl.textContent = "WebSocket error";
+    };
+
+    socket.onclose = () => {
+      console.log("WebSocket closed");
+      statusEl.textContent = "Disconnected ❌";
+    };
   </script>
 </body>
 </html>
