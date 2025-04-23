@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Audio Receiver</title>
+  <title>Audio Receiver 🎧</title>
 </head>
 <body>
   <h2>Audio Receiver 🎧</h2>
@@ -11,39 +11,44 @@
     const statusEl = document.getElementById("status");
     const socket = new WebSocket("wss://multi-tws-audio-backend.onrender.com");
 
-    const audioContext = new AudioContext();
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
     const playAudioBlob = async (blob) => {
-      const arrayBuffer = await blob.arrayBuffer();
-      audioContext.decodeAudioData(arrayBuffer, (buffer) => {
+      try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const buffer = await audioContext.decodeAudioData(arrayBuffer);
         const source = audioContext.createBufferSource();
         source.buffer = buffer;
         source.connect(audioContext.destination);
         source.start(0);
-      });
+      } catch (err) {
+        console.error("❌ Failed to decode audio data:", err);
+        statusEl.textContent = "Error decoding audio 🚫";
+      }
     };
 
     socket.onopen = () => {
-      console.log("Connected to WebSocket server");
+      console.log("✅ Connected to WebSocket server");
       statusEl.textContent = "Connected 🎧";
     };
 
     socket.onmessage = (event) => {
-      const blob = event.data instanceof Blob
-        ? event.data
-        : new Blob([event.data], { type: "audio/webm" });
+      const data = event.data;
+      const blob = data instanceof Blob
+        ? data
+        : new Blob([data], { type: "audio/webm" });
 
       playAudioBlob(blob);
     };
 
     socket.onerror = (e) => {
       console.error("WebSocket error:", e);
-      statusEl.textContent = "WebSocket error";
+      statusEl.textContent = "WebSocket error ❌";
     };
 
     socket.onclose = () => {
-      console.log("WebSocket closed");
-      statusEl.textContent = "Disconnected ❌";
+      console.log("🔌 WebSocket disconnected");
+      statusEl.textContent = "Disconnected 🔌";
     };
   </script>
 </body>
