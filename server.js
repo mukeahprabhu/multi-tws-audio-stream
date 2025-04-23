@@ -1,25 +1,18 @@
-const express = require("express");
-const http = require("http");
-const WebSocket = require("ws");
-const path = require("path");
+const http = require('http');
+const WebSocket = require('ws');
 
-const app = express();
-const server = http.createServer(app);
+const PORT = process.env.PORT || 10000;
+
+const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 
-// Serve index.html from public folder
-app.use(express.static(path.join(__dirname, "public")));
+wss.on('connection', (ws) => {
+  console.log('Client connected');
 
-// Health check route for Render
-app.get("/", (req, res) => {
-  res.send("Server is up and running");
-});
+  ws.on('message', (message) => {
+    console.log('Received:', message);
 
-wss.on("connection", (ws) => {
-  console.log("Client connected");
-
-  ws.on("message", (message) => {
-    // Broadcast the audio to all clients
+    // Broadcast to all connected clients
     wss.clients.forEach((client) => {
       if (client !== ws && client.readyState === WebSocket.OPEN) {
         client.send(message);
@@ -27,12 +20,11 @@ wss.on("connection", (ws) => {
     });
   });
 
-  ws.on("close", () => {
-    console.log("Client disconnected");
+  ws.on('close', () => {
+    console.log('Client disconnected');
   });
 });
 
-const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`WebSocket server running on port ${PORT}`);
 });
