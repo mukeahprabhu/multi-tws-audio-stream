@@ -1,43 +1,30 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Multi TWS Audio Streaming</title>
-</head>
-<body>
-  <h1>Multi TWS Audio Streaming</h1>
-  <p id="status">Initializing...</p>
+<script>
+  const status = document.getElementById("status");
 
-  <script>
-    const status = document.getElementById("status");
+  function connectWebSocket() {
+    // 💡 Replace this URL with your actual backend WebSocket URL
+    const ws = new WebSocket("wss://multi-tws-audio-backend.onrender.com");
 
-    function connectWebSocket() {
-      const protocol = location.protocol === "https:" ? "wss" : "ws";
-      const socketUrl = `${protocol}://${location.host}`;
-      const ws = new WebSocket(socketUrl);
+    ws.onopen = () => {
+      console.log("WebSocket connected");
+      status.textContent = "Connected to server";
+    };
 
-      ws.onopen = () => {
-        console.log("WebSocket connected");
-        status.textContent = "Connected to server";
-      };
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      status.textContent = "WebSocket error";
+    };
 
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        status.textContent = "WebSocket error";
-      };
+    ws.onmessage = (event) => {
+      console.log("Message from server:", event.data);
+      // Handle received message
+    };
 
-      ws.onmessage = (event) => {
-        console.log("Message from server:", event.data);
-        // Handle received message
-      };
+    ws.onclose = () => {
+      console.log("WebSocket closed");
+      status.textContent = "Disconnected from server";
+    };
+  }
 
-      ws.onclose = () => {
-        console.log("WebSocket closed");
-        status.textContent = "Disconnected from server";
-      };
-    }
-
-    connectWebSocket();
-  </script>
-</body>
-</html>
+  connectWebSocket();
+</script>
