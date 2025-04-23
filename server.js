@@ -1,30 +1,33 @@
-const WebSocket = require("ws");
+const WebSocket = require('ws');
+const http = require('http');
 
-const wss = new WebSocket.Server({ port: 8080 });  // Using port 8080
+// Use the port assigned by Render or fallback to 8080 locally
+const PORT = process.env.PORT || 8080;
 
-wss.on("connection", (ws) => {
-  console.log("New client connected");
+// Create HTTP server (Render will handle HTTPS automatically)
+const server = http.createServer();
 
-  // Send a test message to the client
-  ws.send("Welcome to the WebSocket server!");
+const wss = new WebSocket.Server({ server });
 
-  // Simulate sending audio data every second (for testing purposes)
-  setInterval(() => {
-    const audioData = Buffer.from("audio data");  // Replace with actual audio stream data
-    ws.send(audioData);
-  }, 1000);
+wss.on('connection', ws => {
+  console.log('Client connected');
 
-  ws.on("message", (message) => {
-    console.log("Received message:", message);
+  ws.on('message', message => {
+    console.log('Received:', message);
+
+    // Broadcast to all clients
+    wss.clients.forEach(client => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
   });
 
-  ws.on("close", () => {
-    console.log("Client disconnected");
-  });
-
-  ws.on("error", (err) => {
-    console.error("WebSocket error:", err);
+  ws.on('close', () => {
+    console.log('Client disconnected');
   });
 });
 
-console.log("WebSocket server running on ws://localhost:8080");
+server.listen(PORT, () => {
+  console.log(`WebSocket server running on port ${PORT}`);
+});
