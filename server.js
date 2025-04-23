@@ -1,41 +1,30 @@
 const WebSocket = require("ws");
-const { spawn } = require("child_process");
 
-// Create a WebSocket server
-const wss = new WebSocket.Server({ host: '0.0.0.0', port: 8080 });
-console.log("WebSocket server running on ws://0.0.0.0:8080");
+const wss = new WebSocket.Server({ port: 8080 });  // Using port 8080
 
 wss.on("connection", (ws) => {
-  console.log("Client connected");
+  console.log("New client connected");
 
-  // Launch FFmpeg to capture system audio (adjust input for your system)
-  const ffmpeg = spawn("ffmpeg", [
-    "-f", "dshow",           // for Windows, use dshow (DirectShow) for capturing system audio
-    "-i", "audio=Stereo Mix (Realtek(R) Audio)",  // replace with the correct input device for your system
-    "-f", "webm",            // output format (e.g., webm for WebSocket transport)
-    "-acodec", "libvorbis",  // codec for audio
-    "-ar", "44100",          // audio sample rate
-    "-ac", "2",              // stereo audio
-    "-"                      // stream to stdout
-  ]);
+  // Send a test message to the client
+  ws.send("Welcome to the WebSocket server!");
 
-  ffmpeg.stderr.on("data", (data) => {
-    console.error("FFmpeg error:", data.toString());
-  });
+  // Simulate sending audio data every second (for testing purposes)
+  setInterval(() => {
+    const audioData = Buffer.from("audio data");  // Replace with actual audio stream data
+    ws.send(audioData);
+  }, 1000);
 
-  ffmpeg.stdout.on("data", (chunk) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(chunk);  // Send audio chunk over WebSocket
-    }
+  ws.on("message", (message) => {
+    console.log("Received message:", message);
   });
 
   ws.on("close", () => {
     console.log("Client disconnected");
-    ffmpeg.kill("SIGINT");  // Stop FFmpeg when client disconnects
   });
 
   ws.on("error", (err) => {
     console.error("WebSocket error:", err);
-    ffmpeg.kill("SIGINT");  // Stop FFmpeg on WebSocket error
   });
 });
+
+console.log("WebSocket server running on ws://localhost:8080");
