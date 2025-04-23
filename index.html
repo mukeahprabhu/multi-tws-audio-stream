@@ -2,63 +2,42 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Live Audio Streaming</title>
+  <title>Multi TWS Audio Streaming</title>
 </head>
 <body>
-  <h2>Live Audio Streaming</h2>
-  <p>Status: <span id="status">Connecting...</span></p>
-  <audio id="audio" controls autoplay></audio>
+  <h1>Multi TWS Audio Streaming</h1>
+  <p id="status">Initializing...</p>
 
   <script>
-    const audio = document.getElementById("audio");
-    const mediaSource = new MediaSource();
-    audio.src = URL.createObjectURL(mediaSource);
-    document.getElementById("status").innerText = "Initializing...";
-
-    let sourceBuffer;
-    let queue = [];
-
-    mediaSource.addEventListener("sourceopen", () => {
-      sourceBuffer = mediaSource.addSourceBuffer('audio/webm; codecs="vorbis"');
-
-      sourceBuffer.addEventListener("updateend", () => {
-        if (queue.length > 0 && !sourceBuffer.updating) {
-          sourceBuffer.appendBuffer(queue.shift());
-        }
-      });
-
-      connectWebSocket();
-    });
+    const status = document.getElementById("status");
 
     function connectWebSocket() {
-      const wsProtocol = location.protocol === "https:" ? "wss" : "ws";
-      const wsHost = location.host || "localhost:10000"; // fallback for local testing
-      const ws = new WebSocket(`${wsProtocol}://${wsHost}`);
-      ws.binaryType = "arraybuffer";
+      const protocol = location.protocol === "https:" ? "wss" : "ws";
+      const socketUrl = `${protocol}://${location.host}`;
+      const ws = new WebSocket(socketUrl);
 
       ws.onopen = () => {
-        document.getElementById("status").innerText = "Connected";
         console.log("WebSocket connected");
-      };
-
-      ws.onmessage = (event) => {
-        if (sourceBuffer.updating || queue.length > 0) {
-          queue.push(event.data);
-        } else {
-          sourceBuffer.appendBuffer(event.data);
-        }
+        status.textContent = "Connected to server";
       };
 
       ws.onerror = (error) => {
         console.error("WebSocket error:", error);
-        document.getElementById("status").innerText = "Error";
+        status.textContent = "WebSocket error";
+      };
+
+      ws.onmessage = (event) => {
+        console.log("Message from server:", event.data);
+        // Handle received message
       };
 
       ws.onclose = () => {
         console.log("WebSocket closed");
-        document.getElementById("status").innerText = "Disconnected";
+        status.textContent = "Disconnected from server";
       };
     }
+
+    connectWebSocket();
   </script>
 </body>
 </html>
