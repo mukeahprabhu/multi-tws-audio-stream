@@ -31,9 +31,8 @@
     });
 
     function connectWebSocket() {
-      // Use your laptop's IP address for the WebSocket connection
-      const ws = new WebSocket("wss://multi-tws-audio-backend.onrender.com");
-
+      // Connect to the WebSocket server (replace with your actual server URL)
+      const ws = new WebSocket("ws://multi-tws-audio-backend.onrender.com:8080");
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
@@ -43,9 +42,9 @@
 
       ws.onmessage = (event) => {
         if (sourceBuffer.updating || queue.length > 0) {
-          queue.push(event.data);
+          queue.push(event.data);  // Store audio data until buffer is ready
         } else {
-          sourceBuffer.appendBuffer(event.data);
+          sourceBuffer.appendBuffer(event.data);  // Append audio data directly to buffer
         }
       };
 
