@@ -9,7 +9,7 @@ console.log(`🌐 WebSocket server running on ws://localhost:${PORT}`);
 const broadcast = (data, sender) => {
   wss.clients.forEach((client) => {
     if (client !== sender && client.readyState === WebSocket.OPEN) {
-      client.send(data);
+      client.send(data); // Send the data to all other clients
     }
   });
 };
@@ -20,7 +20,7 @@ wss.on("connection", (ws) => {
   ws.on("message", (message) => {
     if (Buffer.isBuffer(message)) {
       console.log(`📨 Received audio chunk (${message.length} bytes)`);
-      broadcast(message, ws);
+      broadcast(message, ws); // Broadcast audio chunk to all clients except the sender
     } else {
       console.warn("⚠️ Received non-binary message");
     }
