@@ -1,15 +1,15 @@
 const WebSocket = require("ws");
-const { spawn } = require("child_process");
 
-const wss = new WebSocket.Server({ port: 10000 });
+const PORT = process.env.PORT || 10000;
+const wss = new WebSocket.Server({ port: PORT });
 
-console.log("WebSocket server running on port 10000");
+console.log(`WebSocket server running on port ${PORT}`);
 
 wss.on("connection", (ws) => {
-  console.log("Client connected");
+  console.log("🔌 New client connected");
 
   ws.on("message", (message) => {
-    console.log("Received chunk of size:", message.length); // ✅ Debug
+    console.log("🔊 Received chunk of size:", message.length);
 
     wss.clients.forEach((client) => {
       if (client !== ws && client.readyState === WebSocket.OPEN) {
@@ -19,37 +19,10 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
-    console.log("Client disconnected");
-    checkAndRestartServer();
+    console.log("❌ A client disconnected");
   });
 
   ws.on("error", (err) => {
-    console.error("WebSocket error:", err);
+    console.error("⚠️ WebSocket error:", err);
   });
 });
-
-// Function to check if there are no clients connected
-function checkAndRestartServer() {
-  if (wss.clients.size === 0) {
-    console.log("No active connections. Restarting server...");
-    restartServer();
-  }
-}
-
-// Function to restart the server
-function restartServer() {
-  wss.close(() => {
-    console.log("Shutting down current server...");
-    setTimeout(() => {
-      console.log("Restarting WebSocket server...");
-      // Restart the WebSocket server after a short delay
-      startServer();
-    }, 1000); // Delay before restart
-  });
-}
-
-// Function to start the server again
-function startServer() {
-  const wss = new WebSocket.Server({ port: 10000 });
-  console.log("WebSocket server running again on port 10000");
-}
