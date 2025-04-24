@@ -11,6 +11,7 @@ wss.on("connection", (ws) => {
   ws.on("message", (message) => {
     console.log("🔊 Received chunk of size:", message.length);
 
+    // Broadcast received audio to all connected clients
     wss.clients.forEach((client) => {
       if (client !== ws && client.readyState === WebSocket.OPEN) {
         client.send(message);
