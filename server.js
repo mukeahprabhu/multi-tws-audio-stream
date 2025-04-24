@@ -3,34 +3,26 @@ const WebSocket = require("ws");
 const PORT = process.env.PORT || 10000;
 const wss = new WebSocket.Server({ port: PORT });
 
-console.log(`🌐 WebSocket server running on ws://localhost:${PORT}`);
-
-// Broadcast to all except sender
-const broadcast = (data, sender) => {
-  wss.clients.forEach((client) => {
-    if (client !== sender && client.readyState === WebSocket.OPEN) {
-      client.send(data); // Send the data to all other clients
-    }
-  });
-};
+console.log(`WebSocket server running on port ${PORT}`);
 
 wss.on("connection", (ws) => {
-  console.log("🔌 New client connected. Total clients:", wss.clients.size);
+  console.log("🔌 New client connected");
 
   ws.on("message", (message) => {
-    if (Buffer.isBuffer(message)) {
-      console.log(`📨 Received audio chunk (${message.length} bytes)`);
-      broadcast(message, ws); // Broadcast audio chunk to all clients except the sender
-    } else {
-      console.warn("⚠️ Received non-binary message");
-    }
+    console.log("🔊 Received chunk of size:", message.length);
+
+    wss.clients.forEach((client) => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
   });
 
   ws.on("close", () => {
-    console.log("❌ A client disconnected. Remaining:", wss.clients.size);
+    console.log("❌ A client disconnected");
   });
 
   ws.on("error", (err) => {
-    console.error("🚨 WebSocket error:", err.message);
+    console.error("⚠️ WebSocket error:", err);
   });
 });
