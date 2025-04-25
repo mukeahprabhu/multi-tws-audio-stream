@@ -9,24 +9,19 @@ wss.on("connection", (ws) => {
   console.log("🔌 New client connected");
 
   ws.on("message", (message) => {
-    console.log("🔊 Received message:", message);
+    // Check if the message is a buffer (binary data)
+    if (Buffer.isBuffer(message)) {
+      console.log("🔊 Received binary audio data of size:", message.length);
 
-    // Ensure that the message is a JSON string
-    let parsedMessage;
-    try {
-      parsedMessage = JSON.parse(message);  // Parse the incoming message if it's a valid JSON
-    } catch (err) {
-      console.error("Invalid JSON message received:", message);
-      return;  // Exit early if the message is not valid JSON
+      // Broadcast the binary audio data to all clients except the sender
+      wss.clients.forEach((client) => {
+        if (client !== ws && client.readyState === WebSocket.OPEN) {
+          client.send(message);  // Send the raw binary data
+        }
+      });
+    } else {
+      console.error("Invalid message format received: not a buffer");
     }
-
-    // Broadcast the message to all clients except the sender
-    wss.clients.forEach((client) => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        // Send the message as a stringified JSON
-        client.send(JSON.stringify(parsedMessage)); 
-      }
-    });
   });
 
   ws.on("close", () => {
