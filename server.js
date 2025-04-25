@@ -9,12 +9,12 @@ console.log(`WebSocket server running on port ${PORT}`);
 wss.on("connection", (ws) => {
   console.log("🔌 New client connected");
 
-  // FFmpeg process for capturing raw PCM audio
+  // FFmpeg process for capturing audio and sending it to WebSocket
   const ffmpegProcess = spawn("ffmpeg", [
     "-f", "dshow", // Windows input format
-    "-i", "audio=Stereo Mix (Realtek(R) Audio)", // Replace with actual stereo mix device
-    "-c:a", "pcm_s16le", // Use raw PCM (16-bit signed little-endian)
-    "-ar", "44100", // Sample rate (44.1kHz)
+    "-i", "audio=Stereo Mix (Realtek(R) Audio)", // Ensure this device name matches exactly
+    "-c:a", "pcm_s16le", // Use raw PCM format (16-bit signed little-endian)
+    "-ar", "44100", // Audio sample rate (44.1kHz)
     "-ac", "2", // Stereo channels
     "-f", "s16le", // Output format: raw PCM
     "pipe:1" // Output to stdout (pipe)
@@ -23,7 +23,7 @@ wss.on("connection", (ws) => {
   // Handle audio data from FFmpeg
   ffmpegProcess.stdout.on("data", (chunk) => {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(chunk); // Send raw PCM data to WebSocket clients
+      ws.send(chunk); // Send raw audio data to WebSocket clients
     }
   });
 
