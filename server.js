@@ -1,25 +1,21 @@
 const express = require("express");
 const WebSocket = require("ws");
+const http = require("http");
 const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Serve files from the 'public' directory
-app.use(express.static(path.join(__dirname, "public")));
-
-const server = app.listen(PORT, () => {
-  console.log(`🚀 HTTP & WebSocket server running on port ${PORT}`);
-});
-
+const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+
+// Serve static files
+app.use(express.static(path.join(__dirname, "public")));
 
 wss.on("connection", (ws) => {
   console.log("🔌 New client connected");
 
   ws.on("message", (message) => {
-    console.log("🔊 Received chunk of size:", message.length);
-
     wss.clients.forEach((client) => {
       if (client !== ws && client.readyState === WebSocket.OPEN) {
         client.send(message);
@@ -27,6 +23,10 @@ wss.on("connection", (ws) => {
     });
   });
 
-  ws.on("close", () => console.log("❌ A client disconnected"));
+  ws.on("close", () => console.log("❌ Client disconnected"));
   ws.on("error", (err) => console.error("⚠️ WebSocket error:", err));
+});
+
+server.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
