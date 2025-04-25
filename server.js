@@ -9,16 +9,15 @@ wss.on("connection", (ws) => {
   console.log("🔌 New client connected");
 
   ws.on("message", (message) => {
-    // Check if the message is a buffer (binary data)
     if (Buffer.isBuffer(message)) {
       console.log("🔊 Received binary audio data of size:", message.length);
-
-      // Broadcast the binary audio data to all clients except the sender
       wss.clients.forEach((client) => {
         if (client !== ws && client.readyState === WebSocket.OPEN) {
-          client.send(message);  // Send the raw binary data
+          client.send(message);
         }
       });
+    } else if (message === '{"ping":true}') {
+      ws.send('{"pong":true}');  // Respond to ping
     } else {
       console.error("Invalid message format received: not a buffer");
     }
