@@ -1,90 +1,85 @@
 const WebSocket = require("ws");
 
-const PORT = process.env.PORT || 10000;
-const wss = new WebSocket.Server({ port: PORT });
+const wss = new WebSocket.Server({ port: 8080 });
 
-console.log(`🚀 WebSocket server running on port ${PORT}`);
-
-// Store sessions: code => { senderSocket, receivers[] }
-const sessions = new Map();
-
-function generateCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase(); // e.g. "X8F7BZ"
-}
+const sessions = {}; // { "123456": { sender: ws, clients: [] } }
 
 wss.on("connection", (ws) => {
-  console.log("🔌 New client connected");
+  console.log("🔗 New connection established");
 
-  let currentSessionCode = null;
-  let isSender = false;
+  ws.on("message", (message) => {
+    // If it's a string, it's JSON (code registration); else it's binary audio
+    if (typeof message === "string") {
+      try {
+        const data = JSON.parse(message);
 
-  ws.on("message", (msg) => {
-    try {
-      if (typeof msg !== "string") {
-        // Binary stream from sender
-        if (currentSessionCode && isSender) {
-          const session = sessions.get(currentSessionCode);
+        if (data.type === "register_sender") {
+          const code = data.code;
+
+          if (!/^\d{6}$/.test(code)) {
+            console.error("❌ Invalid session code format:", code);
+            ws.close();
+            return;
+          }
+
+          sessions[code] = {
+            sender: ws,
+            clients: []
+          };
+
+          ws.sessionCode = code;
+          console.log("🎤 Sender registered with code:", code);
+        }
+
+        if (data.type === "register_client") {
+          const code = data.code;
+          const session = sessions[code];
+
           if (session) {
-            session.receivers.forEach((client) => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(msg);
-              }
-            });
+            session.clients.push(ws);
+            ws.sessionCode = code;
+            console.log("🎧 New client connected to session:", code);
+          } else {
+            console.warn("⚠️ Client tried to connect to invalid code:", code);
+            ws.send(JSON.stringify({ type: "error", message: "Invalid session code" }));
+            ws.close();
           }
         }
-        return;
+
+      } catch (err) {
+        console.error("❌ JSON parse error:", err);
       }
+    } else {
+      // Binary audio data from sender
+      const code = ws.sessionCode;
+      const session = sessions[code];
 
-      const data = JSON.parse(msg);
-
-      // Sender connects
-      if (data.type === "host") {
-        const code = generateCode();
-        sessions.set(code, { senderSocket: ws, receivers: [] });
-        currentSessionCode = code;
-        isSender = true;
-        ws.send(JSON.stringify({ type: "code", code }));
-        console.log(`🎙 Sender started session with code: ${code}`);
-        return;
+      if (session && session.sender === ws) {
+        // Forward audio to all clients
+        session.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+          }
+        });
       }
-
-      // Receiver connects with code
-      if (data.type === "join" && data.code) {
-        const session = sessions.get(data.code);
-        if (session) {
-          session.receivers.push(ws);
-          currentSessionCode = data.code;
-          ws.send(JSON.stringify({ type: "joined", status: "success" }));
-          console.log(`👂 Receiver joined session ${data.code}`);
-        } else {
-          ws.send(JSON.stringify({ type: "error", message: "Invalid code" }));
-          console.warn(`❌ Receiver tried invalid code: ${data.code}`);
-        }
-        return;
-      }
-
-    } catch (err) {
-      console.error("❌ Message processing error:", err.message);
     }
   });
 
   ws.on("close", () => {
-    console.log("❌ A client disconnected");
-    if (currentSessionCode) {
-      const session = sessions.get(currentSessionCode);
-      if (session) {
-        if (isSender) {
-          session.receivers.forEach((r) => r.close());
-          sessions.delete(currentSessionCode);
-          console.log(`🔒 Closed session ${currentSessionCode}`);
-        } else {
-          session.receivers = session.receivers.filter((r) => r !== ws);
-        }
+    const code = ws.sessionCode;
+
+    if (code) {
+      if (sessions[code]?.sender === ws) {
+        console.log("🔌 Sender disconnected. Closing session:", code);
+        sessions[code].clients.forEach((client) => client.close());
+        delete sessions[code];
+      } else {
+        const clients = sessions[code]?.clients || [];
+        sessions[code].clients = clients.filter((c) => c !== ws);
+        console.log("👋 Client disconnected from session:", code);
       }
     }
   });
-
-  ws.on("error", (err) => {
-    console.error("⚠️ WebSocket error:", err);
-  });
 });
+
+console.log("🚀 WebSocket server running on ws://localhost:8080");
