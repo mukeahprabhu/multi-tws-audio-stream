@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Multi-TWS Audio Receiver</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      background: linear-gradient(135deg, #8EC5FC 0%, #E0C3FC 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #333;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-size: 2rem;
+    }
+
+    #playButton {
+      padding: 15px 30px;
+      font-size: 1.2rem;
+      background-color: #6200EE;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    #playButton:hover {
+      background-color: #3700B3;
+    }
+
+    audio {
+      margin-top: 30px;
+      width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Multi-TWS Audio Receiver</h1>
+  <button id="playButton">🎧 Start Audio Stream</button>
+
+  <script>
+    let audioElement;
+    let mediaSource;
+    let sourceBuffer;
+    let ws;
+    let queue = [];
+
+    document.getElementById("playButton").addEventListener("click", () => {
+      if (audioElement) return;
+
+      audioElement = document.createElement("audio");
+      audioElement.controls = true;
+      document.body.appendChild(audioElement);
+
+      mediaSource = new MediaSource();
+      audioElement.src = URL.createObjectURL(mediaSource);
+
+      mediaSource.addEventListener("sourceopen", () => {
+        sourceBuffer = mediaSource.addSourceBuffer("audio/mpeg");
+        sourceBuffer.mode = "sequence";
+
+        sourceBuffer.addEventListener("updateend", () => {
+          if (queue.length > 0 && !sourceBuffer.updating) {
+            sourceBuffer.appendBuffer(queue.shift());
+          }
+
+          syncPlayback();
+        });
+
+        ws = new WebSocket("wss://multi-tws-audio-backend.onrender.com");
+        ws.binaryType = "arraybuffer";
+
+        ws.onopen = () => {
+          console.log("✅ Client connected to WebSocket server");
+        };
+
+        ws.onmessage = (event) => {
+          const chunk = new Uint8Array(event.data);
+          if (!sourceBuffer.updating && queue.length === 0) {
+            sourceBuffer.appendBuffer(chunk);
+          } else {
+            queue.push(chunk);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error("⚠ WebSocket error:", error);
+        };
+      });
+
+      audioElement.addEventListener("error", (e) => {
+        console.error("🎵 Audio playback error:", e);
+      });
+    });
+
+    function syncPlayback() {
+      const buffered = audioElement.buffered;
+      if (buffered.length === 0) return;
+
+      const end = buffered.end(buffered.length - 1);
+      const lag = end - audioElement.currentTime;
+
+      if (audioElement.paused && lag > 0.5) {
+        audioElement.play().catch(console.error);
+      }
+
+      // Soft sync: if lag too large, adjust playback position
+      if (lag > 1.5) {
+        audioElement.currentTime = end - 0.2;
+      }
+    }
+  </script>
+</body>
+</html>
