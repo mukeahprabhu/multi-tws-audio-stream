@@ -1,77 +1,64 @@
-// server.js
 const WebSocket = require("ws");
+const http = require("http");
 
-// Create WebSocket server on port 8080
-const wss = new WebSocket.Server({ port: 8080 });
+const PORT = process.env.PORT || 8080;
+const server = http.createServer();
+const wss = new WebSocket.Server({ server });
 
-console.log("Server running on ws://localhost:8080");
-
-// Temporary in-memory store for codes
-// Example structure: { "123456": senderSocket }
-const codes = {};
+let rooms = {}; // { code: [sockets...] }
 
 wss.on("connection", (ws) => {
-  console.log("New client connected");
-
-  ws.on("message", (message) => {
+  ws.on("message", (msg) => {
     try {
-      const data = JSON.parse(message);
+      const data = JSON.parse(msg.toString());
 
-      // Step 1: Sender generates a code and registers
-      if (data.type === "register") {
+      if (data.type === "join") {
         const { code } = data;
-        codes[code] = ws; // Save sender socket against code
-        ws.role = "sender";
-        ws.code = code;
-        console.log(`Sender registered with code: ${code}`);
-        ws.send(JSON.stringify({ type: "registered", code }));
+        if (!rooms[code]) {
+          ws.send(JSON.stringify({ type: "error", message: "Invalid code" }));
+          return;
+        }
+        ws.roomCode = code;
+        rooms[code].push(ws);
+        ws.send(JSON.stringify({ type: "joined", message: "Code accepted" }));
       }
 
-      // Step 2: Receiver enters code to connect
-      else if (data.type === "join") {
+      else if (data.type === "create") {
         const { code } = data;
-        if (codes[code]) {
-          const senderSocket = codes[code];
-          ws.role = "receiver";
-          ws.code = code;
-          ws.sender = senderSocket;
-
-          // Store receiver in sender
-          if (!senderSocket.receivers) senderSocket.receivers = [];
-          senderSocket.receivers.push(ws);
-
-          console.log(`Receiver joined with code: ${code}`);
-          ws.send(JSON.stringify({ type: "joined", success: true }));
-        } else {
-          console.log(`Invalid code attempt: ${code}`);
-          ws.send(JSON.stringify({ type: "joined", success: false, error: "Invalid code" }));
+        if (rooms[code]) {
+          ws.send(JSON.stringify({ type: "error", message: "Code already exists" }));
+          return;
         }
+        rooms[code] = [];
+        ws.roomCode = code;
+        ws.isSender = true;
+        ws.send(JSON.stringify({ type: "created", message: "Room created" }));
       }
 
-      // Step 3: Audio data from sender → broadcast to receivers
-      else if (data.type === "audio" && ws.role === "sender") {
-        if (ws.receivers) {
-          ws.receivers.forEach((receiver) => {
-            if (receiver.readyState === WebSocket.OPEN) {
-              receiver.send(JSON.stringify({ type: "audio", chunk: data.chunk }));
-            }
-          });
-        }
+      else if (data.type === "audio" && ws.isSender && ws.roomCode) {
+        // broadcast audio to all in the room
+        rooms[ws.roomCode].forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ type: "audio", chunk: data.chunk }));
+          }
+        });
       }
 
     } catch (err) {
-      console.error("Error parsing message:", err);
+      console.error("Message error:", err);
     }
   });
 
   ws.on("close", () => {
-    console.log("Client disconnected");
-
-    // Cleanup if sender disconnects
-    if (ws.role === "sender" && ws.code) {
-      delete codes[ws.code];
-      console.log(`Sender with code ${ws.code} removed`);
+    if (ws.roomCode && rooms[ws.roomCode]) {
+      rooms[ws.roomCode] = rooms[ws.roomCode].filter(c => c !== ws);
+      if (rooms[ws.roomCode].length === 0 && ws.isSender) {
+        delete rooms[ws.roomCode]; // remove room if sender left
+      }
     }
   });
 });
 
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
