@@ -1,62 +1,77 @@
+// server.js
 const WebSocket = require("ws");
 
-const PORT = process.env.PORT || 10000;
-const wss = new WebSocket.Server({ port: PORT });
+// Create WebSocket server on port 8080
+const wss = new WebSocket.Server({ port: 8080 });
 
-console.log(`✅ WebSocket server running on port ${PORT}`);
+console.log("Server running on ws://localhost:8080");
 
-// Store current valid authentication code
-let currentAuthCode = null;
+// Temporary in-memory store for codes
+// Example structure: { "123456": senderSocket }
+const codes = {};
 
 wss.on("connection", (ws) => {
-  console.log("🔌 New client connected");
-
-  ws.isSender = false;
-  ws.isAuthenticated = false;
+  console.log("New client connected");
 
   ws.on("message", (message) => {
     try {
-      const parsed = JSON.parse(message);
+      const data = JSON.parse(message);
 
-      // Sender sets the 6-digit code
-      if (parsed.type === "authCode") {
-        currentAuthCode = parsed.code;
-        ws.isSender = true;
-        ws.isAuthenticated = true;
-        console.log(`🔑 Authentication code set by sender: ${parsed.code}`);
-        return;
+      // Step 1: Sender generates a code and registers
+      if (data.type === "register") {
+        const { code } = data;
+        codes[code] = ws; // Save sender socket against code
+        ws.role = "sender";
+        ws.code = code;
+        console.log(`Sender registered with code: ${code}`);
+        ws.send(JSON.stringify({ type: "registered", code }));
       }
 
-      // Client tries to authenticate
-      if (parsed.type === "authRequest") {
-        if (parsed.code === currentAuthCode) {
-          ws.isAuthenticated = true;
-          ws.send(JSON.stringify({ type: "authResponse", success: true }));
-          console.log("✅ Client authenticated successfully");
+      // Step 2: Receiver enters code to connect
+      else if (data.type === "join") {
+        const { code } = data;
+        if (codes[code]) {
+          const senderSocket = codes[code];
+          ws.role = "receiver";
+          ws.code = code;
+          ws.sender = senderSocket;
+
+          // Store receiver in sender
+          if (!senderSocket.receivers) senderSocket.receivers = [];
+          senderSocket.receivers.push(ws);
+
+          console.log(`Receiver joined with code: ${code}`);
+          ws.send(JSON.stringify({ type: "joined", success: true }));
         } else {
-          ws.send(JSON.stringify({ type: "authResponse", success: false }));
-          console.log("❌ Client provided wrong code");
+          console.log(`Invalid code attempt: ${code}`);
+          ws.send(JSON.stringify({ type: "joined", success: false, error: "Invalid code" }));
         }
-        return;
       }
-    } catch (e) {
-      // Not JSON → must be audio data
-      if (ws.isSender && ws.isAuthenticated) {
-        wss.clients.forEach((client) => {
-          if (!client.isSender && client.isAuthenticated && client.readyState === WebSocket.OPEN) {
-            client.send(message);
-          }
-        });
+
+      // Step 3: Audio data from sender → broadcast to receivers
+      else if (data.type === "audio" && ws.role === "sender") {
+        if (ws.receivers) {
+          ws.receivers.forEach((receiver) => {
+            if (receiver.readyState === WebSocket.OPEN) {
+              receiver.send(JSON.stringify({ type: "audio", chunk: data.chunk }));
+            }
+          });
+        }
       }
+
+    } catch (err) {
+      console.error("Error parsing message:", err);
     }
   });
 
   ws.on("close", () => {
-    console.log("❌ A client disconnected");
-  });
+    console.log("Client disconnected");
 
-  ws.on("error", (err) => {
-    console.error("⚠ WebSocket error:", err);
+    // Cleanup if sender disconnects
+    if (ws.role === "sender" && ws.code) {
+      delete codes[ws.code];
+      console.log(`Sender with code ${ws.code} removed`);
+    }
   });
 });
 
