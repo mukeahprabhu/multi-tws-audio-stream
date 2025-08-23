@@ -1,64 +1,32 @@
 const WebSocket = require("ws");
-const http = require("http");
 
-const PORT = process.env.PORT || 8080;
-const server = http.createServer();
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ port: 8080 });
 
-let rooms = {}; // { code: [sockets...] }
+// Allowed token(s) - you can generate a random secret
+const VALID_TOKENS = ["mysecret123", "anothersecret456"];
 
-wss.on("connection", (ws) => {
-  ws.on("message", (msg) => {
-    try {
-      const data = JSON.parse(msg.toString());
+wss.on("connection", (ws, req) => {
+  const params = new URLSearchParams(req.url.replace("/", ""));
+  const token = params.get("token");
 
-      if (data.type === "join") {
-        const { code } = data;
-        if (!rooms[code]) {
-          ws.send(JSON.stringify({ type: "error", message: "Invalid code" }));
-          return;
-        }
-        ws.roomCode = code;
-        rooms[code].push(ws);
-        ws.send(JSON.stringify({ type: "joined", message: "Code accepted" }));
+  if (!VALID_TOKENS.includes(token)) {
+    console.log("❌ Unauthorized connection attempt");
+    ws.close();
+    return;
+  }
+
+  console.log("✅ Authorized client connected");
+
+  ws.on("message", (message) => {
+    // Broadcast to everyone (except sender)
+    wss.clients.forEach((client) => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(message);
       }
-
-      else if (data.type === "create") {
-        const { code } = data;
-        if (rooms[code]) {
-          ws.send(JSON.stringify({ type: "error", message: "Code already exists" }));
-          return;
-        }
-        rooms[code] = [];
-        ws.roomCode = code;
-        ws.isSender = true;
-        ws.send(JSON.stringify({ type: "created", message: "Room created" }));
-      }
-
-      else if (data.type === "audio" && ws.isSender && ws.roomCode) {
-        // broadcast audio to all in the room
-        rooms[ws.roomCode].forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({ type: "audio", chunk: data.chunk }));
-          }
-        });
-      }
-
-    } catch (err) {
-      console.error("Message error:", err);
-    }
+    });
   });
 
-  ws.on("close", () => {
-    if (ws.roomCode && rooms[ws.roomCode]) {
-      rooms[ws.roomCode] = rooms[ws.roomCode].filter(c => c !== ws);
-      if (rooms[ws.roomCode].length === 0 && ws.isSender) {
-        delete rooms[ws.roomCode]; // remove room if sender left
-      }
-    }
-  });
+  ws.on("close", () => console.log("🔌 Client disconnected"));
 });
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+console.log("Server running on ws://localhost:8080");
