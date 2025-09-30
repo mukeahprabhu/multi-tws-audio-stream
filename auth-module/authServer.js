@@ -1,47 +1,58 @@
 const express = require("express");
+const bodyParser = require("body-parser");
 const cors = require("cors");
+const WebSocket = require("ws"); // ✅ make sure 'ws' is in dependencies
 
 const app = express();
+const PORT = process.env.PORT || 5000;
+
+app.use(bodyParser.json());
 app.use(cors());
-app.use(express.json());
 
-// Store OTPs temporarily in memory (later we can shift to MongoDB if needed)
-const activeOtps = new Map();
+// In-memory store for codes
+const sessions = {};
 
-// Generate a 6-digit OTP
-function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+// Helper to generate 6-digit code
+function generateCode() {
+  return String(Math.floor(Math.random() * 1000000)).padStart(6, "0");
 }
 
-// API: Generate new OTP
+// Sender generates code
 app.post("/api/auth/generate", (req, res) => {
-  const otp = generateOtp();
-  const expiresAt = Date.now() + 5 * 60 * 1000; // valid for 5 min
-  activeOtps.set(otp, expiresAt);
-
-  console.log("🔑 OTP generated:", otp);
-  res.json({ code: otp, expiresAt });
+  const code = generateCode();
+  sessions[code] = {
+    createdAt: Date.now(),
+    ttl: 5 * 60 * 1000 // 5 minutes
+  };
+  console.log("🔑 Generated code:", code);
+  res.json({ code });
 });
 
-// API: Validate OTP
-app.post("/api/auth/validate", (req, res) => {
+// Client joins using code
+app.post("/api/auth/join", (req, res) => {
   const { code } = req.body;
-  const expiresAt = activeOtps.get(code);
+  const session = sessions[code];
 
-  if (expiresAt && Date.now() < expiresAt) {
-    res.json({ valid: true });
-  } else {
-    res.json({ valid: false });
+  if (!session) return res.status(400).json({ ok: false, error: "Invalid code" });
+
+  if (Date.now() - session.createdAt > session.ttl) {
+    delete sessions[code];
+    return res.status(400).json({ ok: false, error: "Code expired" });
   }
+
+  res.json({ ok: true, message: "Code valid! You can connect now." });
 });
 
-// Default route for testing
-app.get("/", (req, res) => {
-  res.send("✅ Auth Server is running!");
-});
+// Clean expired codes every minute
+setInterval(() => {
+  const now = Date.now();
+  for (const code in sessions) {
+    if (now - sessions[code].createdAt > sessions[code].ttl) {
+      delete sessions[code];
+    }
+  }
+}, 60 * 1000);
 
-// Start server
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Auth server running on port ${PORT}`);
+  console.log(🔐 Auth server running on port ${PORT});
 });
