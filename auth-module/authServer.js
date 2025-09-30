@@ -1,66 +1,47 @@
-const WebSocket = require("ws");
-const { spawn } = require("child_process");
+const express = require("express");
+const cors = require("cors");
 
-const AUTH_SERVER = "https://multi-tws-audio-stream.onrender.com";
-const WS_SERVER = "wss://multi-tws-audio-backend.onrender.com"; // your main audio backend
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-let ffmpeg;
+// Store OTPs temporarily in memory (later we can shift to MongoDB if needed)
+const activeOtps = new Map();
 
-// Fetch OTP from Auth server
-async function getOtp() {
-  const response = await fetch(${AUTH_SERVER}/api/auth/generate, { method: "POST" });
-  const data = await response.json();
-  console.log("🔑 OTP generated for this session:", data.code);
-  return data.code;
+// Generate a 6-digit OTP
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-async function start() {
-  try {
-    const code = await getOtp();
+// API: Generate new OTP
+app.post("/api/auth/generate", (req, res) => {
+  const otp = generateOtp();
+  const expiresAt = Date.now() + 5 * 60 * 1000; // valid for 5 min
+  activeOtps.set(otp, expiresAt);
 
-    const socket = new WebSocket(WS_SERVER);
+  console.log("🔑 OTP generated:", otp);
+  res.json({ code: otp, expiresAt });
+});
 
-    socket.on("open", () => {
-      console.log("✅ Connected to server from sender");
+// API: Validate OTP
+app.post("/api/auth/validate", (req, res) => {
+  const { code } = req.body;
+  const expiresAt = activeOtps.get(code);
 
-      // Send registration with OTP
-      socket.send(JSON.stringify({ type: "register_sender", code }));
-
-      ffmpeg = spawn("ffmpeg", [
-        "-f", "dshow",
-        "-i", "audio=Stereo Mix (Realtek(R) Audio)", // 🎙 adjust device name if needed
-        "-ac", "1",
-        "-ar", "44100",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-f", "adts",
-        "-"
-      ]);
-
-      ffmpeg.stderr.on("data", (data) => {
-        console.error("⚠ FFmpeg error:", data.toString());
-      });
-
-      ffmpeg.stdout.on("data", (chunk) => {
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(chunk);
-        }
-      });
-    });
-
-    socket.on("close", () => {
-      console.log("❌ Sender disconnected from server");
-      if (ffmpeg) ffmpeg.kill("SIGINT");
-    });
-
-    socket.on("error", (err) => {
-      console.error("❌ WebSocket sender error:", err);
-      if (ffmpeg) ffmpeg.kill("SIGINT");
-    });
-
-  } catch (err) {
-    console.error("❌ Sender startup failed:", err);
+  if (expiresAt && Date.now() < expiresAt) {
+    res.json({ valid: true });
+  } else {
+    res.json({ valid: false });
   }
-}
+});
 
-start();
+// Default route for testing
+app.get("/", (req, res) => {
+  res.send("✅ Auth Server is running!");
+});
+
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Auth server running on port ${PORT}`);
+});
