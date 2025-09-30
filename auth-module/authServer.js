@@ -1,58 +1,66 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-const cors = require("cors");
-const WebSocket = require("ws"); // ✅ make sure 'ws' is in dependencies
+const WebSocket = require("ws");
+const { spawn } = require("child_process");
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+const AUTH_SERVER = "https://multi-tws-audio-stream.onrender.com";
+const WS_SERVER = "wss://multi-tws-audio-backend.onrender.com"; // your main audio backend
 
-app.use(bodyParser.json());
-app.use(cors());
+let ffmpeg;
 
-// In-memory store for codes
-const sessions = {};
-
-// Helper to generate 6-digit code
-function generateCode() {
-  return String(Math.floor(Math.random() * 1000000)).padStart(6, "0");
+// Fetch OTP from Auth server
+async function getOtp() {
+  const response = await fetch(${AUTH_SERVER}/api/auth/generate, { method: "POST" });
+  const data = await response.json();
+  console.log("🔑 OTP generated for this session:", data.code);
+  return data.code;
 }
 
-// Sender generates code
-app.post("/api/auth/generate", (req, res) => {
-  const code = generateCode();
-  sessions[code] = {
-    createdAt: Date.now(),
-    ttl: 5 * 60 * 1000 // 5 minutes
-  };
-  console.log("🔑 Generated code:", code);
-  res.json({ code });
-});
+async function start() {
+  try {
+    const code = await getOtp();
 
-// Client joins using code
-app.post("/api/auth/join", (req, res) => {
-  const { code } = req.body;
-  const session = sessions[code];
+    const socket = new WebSocket(WS_SERVER);
 
-  if (!session) return res.status(400).json({ ok: false, error: "Invalid code" });
+    socket.on("open", () => {
+      console.log("✅ Connected to server from sender");
 
-  if (Date.now() - session.createdAt > session.ttl) {
-    delete sessions[code];
-    return res.status(400).json({ ok: false, error: "Code expired" });
+      // Send registration with OTP
+      socket.send(JSON.stringify({ type: "register_sender", code }));
+
+      ffmpeg = spawn("ffmpeg", [
+        "-f", "dshow",
+        "-i", "audio=Stereo Mix (Realtek(R) Audio)", // 🎙 adjust device name if needed
+        "-ac", "1",
+        "-ar", "44100",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-f", "adts",
+        "-"
+      ]);
+
+      ffmpeg.stderr.on("data", (data) => {
+        console.error("⚠ FFmpeg error:", data.toString());
+      });
+
+      ffmpeg.stdout.on("data", (chunk) => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(chunk);
+        }
+      });
+    });
+
+    socket.on("close", () => {
+      console.log("❌ Sender disconnected from server");
+      if (ffmpeg) ffmpeg.kill("SIGINT");
+    });
+
+    socket.on("error", (err) => {
+      console.error("❌ WebSocket sender error:", err);
+      if (ffmpeg) ffmpeg.kill("SIGINT");
+    });
+
+  } catch (err) {
+    console.error("❌ Sender startup failed:", err);
   }
+}
 
-  res.json({ ok: true, message: "Code valid! You can connect now." });
-});
-
-// Clean expired codes every minute
-setInterval(() => {
-  const now = Date.now();
-  for (const code in sessions) {
-    if (now - sessions[code].createdAt > sessions[code].ttl) {
-      delete sessions[code];
-    }
-  }
-}, 60 * 1000);
-
-app.listen(PORT, () => {
-  console.log(`🔐 Auth server running on port ${PORT}`);
-});
+start();
