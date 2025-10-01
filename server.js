@@ -1,5 +1,4 @@
 const WebSocket = require("ws");
-const fetch = require("node-fetch"); // ✅ install with: npm install node-fetch
 
 const PORT = process.env.PORT || 10000;
 const AUTH_SERVER = "https://multi-tws-audio-stream.onrender.com";
@@ -15,16 +14,10 @@ wss.on("connection", (ws) => {
 
   ws.on("message", async (message) => {
     try {
-      // Try to parse JSON messages (registration)
-      let msg;
-      try {
-        msg = JSON.parse(message.toString());
-      } catch {
-        msg = null;
-      }
+      const msg = JSON.parse(message.toString());
 
       // Handle registration
-      if (msg && (msg.type === "register_sender" || msg.type === "register_client")) {
+      if (msg.type === "register_sender" || msg.type === "register_client") {
         const response = await fetch(`${AUTH_SERVER}/api/auth/join`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -45,8 +38,20 @@ wss.on("connection", (ws) => {
         return;
       }
 
-      // Handle audio chunks from sender
+      // Forward audio only from authorized sender
       if (ws.isAuthorized && ws.role === "register_sender" && Buffer.isBuffer(message)) {
         wss.clients.forEach((client) => {
           if (client !== ws && client.readyState === WebSocket.OPEN && client.isAuthorized) {
-            client.send(message)
+            client.send(message);
+          }
+        });
+      }
+
+    } catch (err) {
+      console.error("⚠ WebSocket error:", err);
+    }
+  });
+
+  ws.on("close", () => console.log("❌ A client disconnected"));
+  ws.on("error", (err) => console.error("⚠ WebSocket error:", err));
+});
