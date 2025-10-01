@@ -1,7 +1,6 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const WebSocket = require("ws"); // ✅ make sure 'ws' is in dependencies
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -54,5 +53,5 @@ setInterval(() => {
 }, 60 * 1000);
 
 app.listen(PORT, () => {
-  console.log(🔐 Auth server running on port ${PORT});
+  console.log(`🔐 Auth server running on port ${PORT}`);
 });
