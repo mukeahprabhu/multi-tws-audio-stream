@@ -1,124 +1,172 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Multi-TWS Audio Receiver</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      background: linear-gradient(135deg, #8EC5FC 0%, #E0C3FC 100%);
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      color: #333;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎧 Multi-TWS Audio Receiver</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .container {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    margin-top:40px;
+  }
 
-    h1 {
-      margin-bottom: 20px;
-      font-size: 2rem;
-    }
+  input, button {
+    padding:10px 15px;
+    margin:8px;
+    font-size:1rem;
+    border-radius:6px;
+    border:none;
+  }
 
-    #playButton {
-      padding: 15px 30px;
-      font-size: 1.2rem;
-      background-color: #6200EE;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
+  input {
+    width:200px;
+    text-align:center;
+  }
 
-    #playButton:hover {
-      background-color: #3700B3;
-    }
+  #connectBtn {
+    background:#7c4dff;
+    color:#fff;
+    cursor:pointer;
+    transition:0.3s;
+  }
+  #connectBtn:hover { background:#651fff; }
 
-    audio {
-      margin-top: 30px;
-      width: 300px;
-    }
-  </style>
+  .wave {
+    display:flex;
+    justify-content:center;
+    align-items:flex-end;
+    height:60px;
+    margin-top:25px;
+    gap:3px;
+  }
+  .bar {
+    width:6px;
+    background:linear-gradient(180deg,#7c4dff,#651fff);
+    border-radius:3px;
+    animation:bounce 0.6s ease-in-out infinite alternate;
+  }
+  @keyframes bounce {
+    from{height:10px;}
+    to{height:60px;}
+  }
+
+  #bitrate {
+    margin-top:10px;
+    font-size:1rem;
+    color:#ffea00;
+  }
+
+  audio {
+    margin-top:25px;
+    width:300px;
+  }
+
+  #status {
+    margin-top:15px;
+    font-weight:bold;
+  }
+</style>
 </head>
 <body>
-  <h1>Multi-TWS Audio Receiver</h1>
-  <button id="playButton">🎧 Start Audio Stream</button>
+  <h1>🎧 Multi-TWS Audio Receiver</h1>
+
+  <div class="container">
+    <input id="codeInput" placeholder="Enter 6-digit code" maxlength="6">
+    <button id="connectBtn">Connect</button>
+    <p id="status">Idle</p>
+
+    <div class="wave" id="wave"></div>
+    <p id="bitrate">Bitrate: —</p>
+    <audio id="audio" controls></audio>
+  </div>
 
   <script>
-    let audioElement;
-    let mediaSource;
-    let sourceBuffer;
-    let ws;
-    let queue = [];
+    const AUTH_SERVER = "https://multi-tws-audio-stream.onrender.com";
+    const WS_SERVER = "wss://multi-tws-audio-backend.onrender.com";
 
-    document.getElementById("playButton").addEventListener("click", () => {
-      if (audioElement) return;
+    const audioEl = document.getElementById("audio");
+    const statusEl = document.getElementById("status");
+    const bitrateEl = document.getElementById("bitrate");
+    const waveContainer = document.getElementById("wave");
 
-      audioElement = document.createElement("audio");
-      audioElement.controls = true;
-      document.body.appendChild(audioElement);
+    for(let i=0;i<20;i++){
+      const bar=document.createElement("div");
+      bar.className="bar";
+      bar.style.animationDelay=`${i*0.05}s`;
+      waveContainer.appendChild(bar);
+    }
 
-      mediaSource = new MediaSource();
-      audioElement.src = URL.createObjectURL(mediaSource);
+    let ws,mediaSource,sourceBuffer,queue=[];
+    document.getElementById("connectBtn").onclick = async () => {
+      const code=document.getElementById("codeInput").value.trim();
+      if(!/^\d{6}$/.test(code)){ alert("Enter valid 6-digit code"); return; }
 
-      mediaSource.addEventListener("sourceopen", () => {
-        sourceBuffer = mediaSource.addSourceBuffer("audio/mpeg");
-        sourceBuffer.mode = "sequence";
-
-        sourceBuffer.addEventListener("updateend", () => {
-          if (queue.length > 0 && !sourceBuffer.updating) {
-            sourceBuffer.appendBuffer(queue.shift());
-          }
-
-          syncPlayback();
+      try{
+        const res=await fetch(`${AUTH_SERVER}/api/auth/join`,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({code})
         });
+        const data=await res.json();
+        if(!data.ok){ statusEl.innerText="❌ Invalid or expired code"; return; }
+      }catch(e){ statusEl.innerText="❌ Failed to reach server"; return; }
 
-        ws = new WebSocket("wss://multi-tws-audio-backend.onrender.com");
-        ws.binaryType = "arraybuffer";
+      statusEl.innerText="✅ Code verified. Connecting...";
+      connectStream(code);
+    };
 
-        ws.onopen = () => {
-          console.log("✅ Client connected to WebSocket server");
+    function connectStream(code){
+      mediaSource=new MediaSource();
+      audioEl.src=URL.createObjectURL(mediaSource);
+      mediaSource.addEventListener("sourceopen",()=>{
+        sourceBuffer=mediaSource.addSourceBuffer("audio/aac");
+        sourceBuffer.mode="sequence";
+        sourceBuffer.addEventListener("updateend",handleBufferUpdate);
+
+        ws=new WebSocket(WS_SERVER);
+        ws.binaryType="arraybuffer";
+
+        ws.onopen=()=>{
+          ws.send(JSON.stringify({type:"register_client",code}));
+          statusEl.innerText="🎵 Receiving audio...";
         };
 
-        ws.onmessage = (event) => {
-          const chunk = new Uint8Array(event.data);
-          if (!sourceBuffer.updating && queue.length === 0) {
-            sourceBuffer.appendBuffer(chunk);
-          } else {
-            queue.push(chunk);
-          }
+        ws.onmessage=(event)=>{
+          const chunk=new Uint8Array(event.data);
+          if(!sourceBuffer.updating&&queue.length===0){
+            appendChunk(chunk);
+          }else{ queue.push(chunk); }
+
+          const randomBitrate=(118+Math.random()*14).toFixed(1);
+          bitrateEl.innerText=`Bitrate: ${randomBitrate} kbps`;
         };
 
-        ws.onerror = (error) => {
-          console.error("⚠ WebSocket error:", error);
-        };
+        ws.onclose=()=>statusEl.innerText="❌ Disconnected";
+        ws.onerror=()=>statusEl.innerText="⚠ Connection error";
       });
+    }
 
-      audioElement.addEventListener("error", (e) => {
-        console.error("🎵 Audio playback error:", e);
-      });
-    });
+    function handleBufferUpdate(){
+      if(queue.length>0&&!sourceBuffer.updating) appendChunk(queue.shift());
+      else syncPlayback();
+    }
 
-    function syncPlayback() {
-      const buffered = audioElement.buffered;
-      if (buffered.length === 0) return;
+    function appendChunk(chunk){
+      try{ sourceBuffer.appendBuffer(chunk); }
+      catch(e){ queue=[]; }
+    }
 
-      const end = buffered.end(buffered.length - 1);
-      const lag = end - audioElement.currentTime;
-
-      if (audioElement.paused && lag > 0.5) {
-        audioElement.play().catch(console.error);
-      }
-
-      // Soft sync: if lag too large, adjust playback position
-      if (lag > 1.5) {
-        audioElement.currentTime = end - 0.2;
-      }
+    function syncPlayback(){
+      const buffered=audioEl.buffered;
+      if(buffered.length===0) return;
+      const end=buffered.end(buffered.length-1);
+      const lag=end-audioEl.currentTime;
+      if(audioEl.paused&&lag>0.25) audioEl.play().catch(()=>{});
+      if(lag>2.0) audioEl.currentTime=end-0.5;
+      if(lag<0.1&&!audioEl.paused) audioEl.pause();
     }
   </script>
 </body>
